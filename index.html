@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<title>Garmin Activity Editor</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f5f7fa;color:#111827;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.app{max-width:760px;margin:auto;padding:18px 16px 40px}.hero{padding:10px 2px 18px}.hero h1{font-size:30px;margin:0 0 5px}.hero p{margin:0;color:#667085}
+.card{background:#fff;border:1px solid #e4e7ec;border-radius:18px;padding:17px;margin:12px 0;box-shadow:0 2px 8px rgba(16,24,40,.04)}
+.drop{border:2px dashed #98a2b3;border-radius:15px;padding:30px 18px;text-align:center;cursor:pointer;background:#fafbfc}
+.drop strong{font-size:17px}.drop p{margin:7px 0 0;color:#667085;font-size:14px}
+button{appearance:none;border:1px solid #d0d5dd;border-radius:11px;background:#fff;color:#1d2939;padding:11px 13px;font-size:15px;font-weight:650;cursor:pointer}
+button.primary{background:#111827;color:white;border-color:#111827}.big{width:100%;padding:14px;font-size:16px}
+button.danger{color:#b42318}.toolbar{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+@media(max-width:430px){.toolbar{grid-template-columns:1fr}.hero h1{font-size:27px}}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat{background:#f8fafc;border-radius:12px;padding:10px}.stat span{display:block;font-size:11px;color:#667085;text-transform:uppercase;letter-spacing:.05em}.stat b{display:block;margin-top:3px;font-size:18px}
+.activity-title{font-size:19px;font-weight:750}.muted{color:#667085;font-size:13px}
+.notice{padding:12px 13px;background:#eff8ff;border:1px solid #b2ddff;border-radius:12px;color:#175cd3;font-size:14px}
+.success{padding:12px 13px;background:#ecfdf3;border:1px solid #abefc6;border-radius:12px;color:#067647;font-size:14px}
+.error{padding:12px 13px;background:#fef3f2;border:1px solid #fecdca;border-radius:12px;color:#b42318;font-size:14px}
+.hidden{display:none!important}.row{display:grid;grid-template-columns:38px 1fr auto;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid #eaecf0}.row:last-child{border-bottom:0}
+.num{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#eef2f6;font-weight:750;font-size:13px}.label{font-weight:700}.detail{font-size:13px;color:#667085;margin-top:3px}
+.badge{display:inline-block;font-size:11px;font-weight:750;border-radius:99px;padding:4px 7px;margin-right:5px}.round{background:#ecfdf3;color:#067647}.rest{background:#fff6ed;color:#b54708}
+.actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.actions button{font-size:12px;padding:7px 9px}
+h2{font-size:18px;margin:0 0 10px}.small{font-size:12px;color:#667085;line-height:1.45}
+label{display:block;font-size:13px;font-weight:650;color:#344054}input,select{width:100%;margin-top:6px;border:1px solid #d0d5dd;border-radius:9px;padding:10px;background:white;font-size:15px}
+.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.form-actions{display:flex;gap:8px;margin-top:12px}
+footer{text-align:center;color:#98a2b3;font-size:12px;margin-top:18px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hero">
+    <h1>Garmin Activity Editor</h1>
+    <p>Fix rounds Garmin accidentally recorded as rest — directly on your iPhone.</p>
+  </div>
+
+  <div class="card" id="uploadCard">
+    <div class="drop" id="drop">
+      <strong>Choose a Garmin .FIT file</strong>
+      <p>Your activity stays on this device.</p>
+      <input id="file" type="file" accept=".fit,application/octet-stream" hidden>
+    </div>
+    <div id="message" class="hidden" style="margin-top:12px"></div>
+  </div>
+
+  <div id="editor" class="hidden">
+    <div class="card">
+      <div class="activity-title" id="activityTitle">Activity</div>
+      <div class="muted" id="activityMeta" style="margin:4px 0 14px"></div>
+      <div class="summary">
+        <div class="stat"><span>Total sets</span><b id="setCount">0</b></div>
+        <div class="stat"><span>Rounds</span><b id="roundCount">0</b></div>
+        <div class="stat"><span>Rest</span><b id="restCount">0</b></div>
+      </div>
+      <div class="toolbar">
+        <button class="primary big" id="fixAll">⚡ Fix all Rest → Round</button>
+        <button class="big" id="removeAll">Delete all Rest sets</button>
+      </div>
+      <p class="small" style="margin-bottom:0">“Fix all” changes only the Garmin Set type. It does not remove your GPS, heart-rate, pace, or other Record data.</p>
+    </div>
+
+    <div class="card">
+      <h2>Rounds & rest</h2>
+      <div id="list"></div>
+      <button class="big" style="margin-top:12px" id="addRound">＋ Add round</button>
+    </div>
+
+    <div class="card hidden" id="editCard">
+      <h2>Edit selected set</h2>
+      <div class="formgrid">
+        <label>Type<select id="type"><option value="1">Round / Active</option><option value="0">Rest</option></select></label>
+        <label>Start offset (sec)<input id="start" type="number" min="0" step=".001"></label>
+        <label>Duration (sec)<input id="duration" type="number" min="0" step=".001"></label>
+        <label>Repetitions<input id="reps" type="number" min="0" step="1"></label>
+        <label>Weight (kg)<input id="weight" type="number" min="0" step=".0625" placeholder="optional"></label>
+      </div>
+      <div class="form-actions"><button class="primary" id="save">Save</button><button class="danger" id="delete">Delete set</button></div>
+    </div>
+
+    <div class="card">
+      <div class="notice">Before importing the corrected file into Garmin Connect, keep the original FIT file as a backup. The editor preserves the underlying activity records and changes the Set metadata.</div>
+      <button class="primary big" style="margin-top:12px" id="export">Save corrected FIT</button>
+      <div id="exportMessage" class="hidden" style="margin-top:10px"></div>
+    </div>
+  </div>
+  <footer>Local processing • No Garmin login • No activity upload</footer>
+</div>
+
+<script>
+/* FIT parser focused on Garmin Set (global message 225), preserving all other records. */
+const C=[0,0xCC01,0xD801,0x1400,0xF001,0x3C00,0x2800,0xE401,0xA001,0x6C00,0x7800,0xB401,0x5000,0x9C01,0x8801,0x4400];
+function crc(a,s=0,e=a.length){let c=0;for(let i=s;i<e;i++){let t=C[c&15];c=((c>>>4)&4095)^t^C[a[i]&15];t=C[c&15];c=((c>>>4)&4095)^t^C[(a[i]>>>4)&15]}return c&65535}
+function u16(a,p,l=true){return l?a[p]|a[p+1]<<8:a[p]<<8|a[p+1]}function u32(a,p,l=true){return l?(a[p]|a[p+1]<<8|a[p+2]<<16|a[p+3]<<24)>>>0:(a[p]<<24|a[p+1]<<16|a[p+2]<<8|a[p+3])>>>0}
+function put(a,p,v,n,l=true){if(n===1)a[p]=v&255;else if(n===2){if(l){a[p]=v&255;a[p+1]=v>>>8}else{a[p]=v>>>8;a[p+1]=v&255}}else if(n===4){if(l){a[p]=v&255;a[p+1]=v>>>8;a[p+2]=v>>>16;a[p+3]=v>>>24}else{a[p]=v>>>24;a[p+1]=v>>>16;a[p+2]=v>>>8;a[p+3]=v}}}
+const epoch=631065600;
+let S=null;
+function parse(buf){
+ const a=new Uint8Array(buf);if(a.length<14||a[8]!==46||a[9]!==70||a[10]!==73||a[11]!==84)throw Error("That file is not a valid FIT activity.");
+ const hs=a[0],ds=u32(a,4),end=hs+ds;if(end+2>a.length)throw Error("The FIT file is truncated.");
+ const defs=new Map(),rs=[];let p=hs;
+ while(p<end){const st=p,h=a[p++];if(h&128){const d=defs.get((h>>>5)&3);if(!d)throw Error("Invalid compressed FIT record.");p+=d.size;rs.push({st,end:p,k:1,local:d.local,global:d.global,def:d,comp:1});continue}
+  const local=h&15;if(h&64){const arch=a[p+1],l=arch===0,g=l?u16(a,p+2):u16(a,p+2,false),n=a[p+4];p+=5;const fs=[];let size=0;for(let i=0;i<n;i++){const id=a[p++],sz=a[p++],ty=a[p++];fs.push({id,sz,ty,off:size});size+=sz}if(h&32){const nd=a[p++];for(let i=0;i<nd;i++){p+=3;size+=a[p-2]}}const d={local,global:g,little:l,fields:fs,size};defs.set(local,d);rs.push({st,end:p,k:0,local,global:g,def:d})}
+  else{const d=defs.get(local);if(!d)throw Error("Invalid FIT data record.");p+=d.size;rs.push({st,end:p,k:1,local,global:d.global,def:d})}
+ }
+ return {a,hs,ds,rs}
+}
+function get(r,id){const f=r.def?.fields.find(x=>x.id===id);if(!f)return null;const a=r.arr||S.p.a,p=r.st+1+f.off;return f.sz===1?a[p]:f.sz===2?u16(a,p,r.def.little):f.sz===4?u32(a,p,r.def.little):null}
+function set(r,id,v){const f=r.def?.fields.find(x=>x.id===id);if(!f)return;const a=r.arr||S.p.a;put(a,r.st+1+f.off,v,f.sz,r.def.little)}
+function sets(){return S.p.rs.filter(r=>r.k===1&&r.global===225&&!r.comp)}
+function session(){return S.p.rs.find(r=>r.k===1&&r.global===18)}
+function fmt(sec){sec=Math.max(0,sec);let m=Math.floor(sec/60),s=Math.floor(sec%60);return (m?m+":"+String(s).padStart(2,"0"):"0:"+String(s).padStart(2,"0"))}
+function render(){
+ const ss=sets(), sess=session(), base=sess?get(sess,2):0;
+ document.getElementById("setCount").textContent=ss.length;
+ document.getElementById("roundCount").textContent=ss.filter(r=>get(r,5)===1).length;
+ document.getElementById("restCount").textContent=ss.filter(r=>get(r,5)===0).length;
+ const list=document.getElementById("list");list.innerHTML="";
+ ss.forEach((r,i)=>{const type=get(r,5),start=get(r,6)||base,dur=(get(r,0)||0)/1000;
+  const div=document.createElement("div");div.className="row";
+  div.innerHTML=`<div class="num">${i+1}</div><div><div class="label"><span class="badge ${type?"round":"rest"}">${type?"ROUND":"REST"}</span>${fmt(dur)}</div><div class="detail">Starts ${fmt(start-base)}${get(r,3)!==65535?" • "+get(r,3)+" reps":""}</div></div><div class="actions"><button data-edit="${i}">Edit</button><button data-toggle="${i}">${type?"Make Rest":"Make Round"}</button><button class="danger" data-del="${i}">Delete</button></div>`;
+  list.appendChild(div);
+ });
+ list.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>edit(+b.dataset.edit));
+ list.querySelectorAll("[data-toggle]").forEach(b=>b.onclick=()=>{const r=sets()[+b.dataset.toggle];set(r,5,get(r,5)?0:1);reindex();render()});
+ list.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>del(+b.dataset.del));
+}
+function reindex(){sets().forEach((r,i)=>set(r,10,i))}
+function edit(i){const r=sets()[i],base=session()?get(session(),2):0;S.selected=i;document.getElementById("editCard").classList.remove("hidden");document.getElementById("type").value=get(r,5);document.getElementById("start").value=((get(r,6)||base)-base).toFixed(3);document.getElementById("duration").value=((get(r,0)||0)/1000).toFixed(3);document.getElementById("reps").value=get(r,3)===65535?"":get(r,3);document.getElementById("weight").value=get(r,4)===65535?"":(get(r,4)/16).toFixed(4)}
+function del(i){const r=sets()[i],idx=S.p.rs.indexOf(r);S.p.rs.splice(idx,1);S.selected=null;reindex();render();document.getElementById("editCard").classList.add("hidden")}
+document.getElementById("save").onclick=()=>{const r=sets()[S.selected],base=session()?get(session(),2):0;set(r,5,+document.getElementById("type").value);set(r,6,Math.round(base+Math.max(0,+document.getElementById("start").value||0)));set(r,0,Math.round(Math.max(0,+document.getElementById("duration").value||0)*1000));set(r,3,document.getElementById("reps").value===""?65535:Math.max(0,Math.round(+document.getElementById("reps").value)));set(r,4,document.getElementById("weight").value===""?65535:Math.max(0,Math.round(+document.getElementById("weight").value*16)));reindex();render();edit(S.selected)}
+document.getElementById("delete").onclick=()=>S.selected!=null&&del(S.selected)
+document.getElementById("fixAll").onclick=()=>{sets().forEach(r=>{if(get(r,5)===0)set(r,5,1)});reindex();render();show("success","All Rest sets were changed to Round / Active.")}
+document.getElementById("removeAll").onclick=()=>{S.p.rs=S.p.rs.filter(r=>!(r.k===1&&r.global===225&&get(r,5)===0));reindex();render();show("success","All Rest set records were deleted. Underlying Record data was not deleted.")}
+document.getElementById("addRound").onclick=()=>{
+ const ss=sets();if(!ss.length){show("error","This activity has no Set record to use as a template.");return}
+ const t=ss[ss.length-1],raw=S.p.a.slice(t.st,t.end),r={st:0,end:raw.length,k:1,local:t.local,global:225,def:t.def,arr:raw};
+ const base=session()?get(session(),2):0,st=(get(t,6)||base)+(get(t,0)||0)/1000;set(r,5,1);set(r,6,Math.round(st));set(r,0,get(t,0)||60000);set(r,3,65535);set(r,4,65535);set(r,254,Math.round(st+(get(r,0)||0)/1000));r.override=raw;S.p.rs.splice(S.p.rs.indexOf(t)+1,0,r);reindex();render()
+}
+function exportFit(){
+ reindex();const chunks=[];for(const r of S.p.rs)chunks.push(r.override||S.p.a.slice(r.st,r.end));const len=chunks.reduce((n,x)=>n+x.length,0),out=new Uint8Array(S.p.hs+len+2);out.set(S.p.a.slice(0,S.p.hs));let q=S.p.hs;for(const x of chunks){out.set(x,q);q+=x.length}put(out,4,len,4,true);put(out,12,crc(out,0,12),2,true);put(out,S.p.hs+len,crc(out,0,S.p.hs+len),2,true);
+ const blob=new Blob([out],{type:"application/octet-stream"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=S.name.replace(/\.fit$/i,"")+"_edited.fit";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);document.getElementById("exportMessage").className="success";document.getElementById("exportMessage").textContent="Saved "+a.download+". Keep the original FIT as your backup."
+}
+document.getElementById("export").onclick=exportFit;
+function show(cls,msg){const e=document.getElementById("message");e.className=cls;e.textContent=msg}
+async function load(f){try{const p=parse(await f.arrayBuffer());S={p,name:f.name,selected:null};if(!sets().length)throw Error("This activity does not contain Garmin Set records. The current editor is designed for Garmin HIIT/strength-style activities.");document.getElementById("editor").classList.remove("hidden");document.getElementById("activityTitle").textContent=f.name;document.getElementById("activityMeta").textContent="FIT activity loaded locally";render();show("success",`Loaded ${sets().length} Set records. ${sets().filter(r=>get(r,5)===0).length} are Rest.`)}catch(e){show("error",e.message||String(e))}}
+const drop=document.getElementById("drop"),file=document.getElementById("file");drop.onclick=()=>file.click();file.onchange=()=>file.files[0]&&load(file.files[0]);drop.ondragover=e=>e.preventDefault();drop.ondrop=e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f)load(f)}
+</script>
+</body>
+</html>
