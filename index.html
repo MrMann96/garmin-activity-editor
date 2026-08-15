@@ -59,7 +59,7 @@ footer{text-align:center;color:#98a2b3;font-size:12px;margin-top:18px}
         <button class="primary big" id="fixAll">⚡ Fix all Rest → Round</button>
         <button class="big" id="removeAll">Delete all Rest sets</button>
       </div>
-      <p class="small" style="margin-bottom:0">“Fix all” changes Garmin Set metadata only. For activities that include Garmin’s device-specific round metadata, it repairs the active marker and round order so Connect can keep converted sets separate. It does not remove your GPS, heart-rate, pace, or other Record data.</p>
+      <p class="small" style="margin-bottom:0">“Fix all” changes Garmin Set metadata only. For activities that include Garmin’s round-order field, it also renumbers active rounds so Connect can keep converted sets separate. It does not remove your GPS, heart-rate, pace, or other Record data.</p>
     </div>
 
     <div class="card">
@@ -110,7 +110,6 @@ function parse(buf){
 function get(r,id){const f=r.def?.fields.find(x=>x.id===id);if(!f)return null;const a=r.arr||S.p.a,p=r.st+1+f.off;return f.sz===1?a[p]:f.sz===2?u16(a,p,r.def.little):f.sz===4?u32(a,p,r.def.little):null}
 function field(r,id){return r.def?.fields.find(x=>x.id===id)}
 function set(r,id,v){const f=field(r,id);if(!f)return;const a=r.arr||S.p.a;put(a,r.st+1+f.off,v,f.sz,r.def.little)}
-function setBytes(r,id,bytes){const f=field(r,id);if(!f||f.sz!==bytes.length)return false;const a=r.arr||S.p.a;a.set(bytes,r.st+1+f.off);return true;}
 function sets(){return S.p.rs.filter(r=>r.k===1&&r.global===225&&!r.comp)}
 function session(){return S.p.rs.find(r=>r.k===1&&r.global===18)}
 function fmt(sec){sec=Math.max(0,sec);let m=Math.floor(sec/60),s=Math.floor(sec%60);return (m?m+":"+String(s).padStart(2,"0"):"0:"+String(s).padStart(2,"0"))}
@@ -131,10 +130,10 @@ function render(){
 }
 function normalizeRoundOrder(){
  const active=sets().filter(r=>get(r,5)===1);
- // The supplied device stores two undocumented fields: a 16-bit round order (#14)
- // and a 3-byte marker (#2). Garmin Connect groups a 00 00 00 marker as a child/rest set.
+ // Some Garmin devices add an undocumented 16-bit field 14. In the supplied activity,
+ // Connect uses it to decide which set belongs to which displayed round.
  if(!active.length||!active.every(r=>{const f=field(r,14);return f&&f.sz===2}))return false;
- active.forEach((r,i)=>{set(r,14,i);setBytes(r,2,new Uint8Array([255,0,0]));});
+ active.forEach((r,i)=>set(r,14,i));
  return true;
 }
 function reindex(){sets().forEach((r,i)=>set(r,10,i))}
@@ -142,7 +141,7 @@ function edit(i){const r=sets()[i],base=session()?get(session(),2):0;S.selected=
 function del(i){const r=sets()[i],idx=S.p.rs.indexOf(r);S.p.rs.splice(idx,1);S.selected=null;normalizeRoundOrder();reindex();render();document.getElementById("editCard").classList.add("hidden")}
 document.getElementById("save").onclick=()=>{const r=sets()[S.selected],base=session()?get(session(),2):0;set(r,5,+document.getElementById("type").value);set(r,6,Math.round(base+Math.max(0,+document.getElementById("start").value||0)));set(r,0,Math.round(Math.max(0,+document.getElementById("duration").value||0)*1000));set(r,3,document.getElementById("reps").value===""?65535:Math.max(0,Math.round(+document.getElementById("reps").value)));set(r,4,document.getElementById("weight").value===""?65535:Math.max(0,Math.round(+document.getElementById("weight").value*16)));normalizeRoundOrder();reindex();render();edit(S.selected)}
 document.getElementById("delete").onclick=()=>S.selected!=null&&del(S.selected)
-document.getElementById("fixAll").onclick=()=>{sets().forEach(r=>{if(get(r,5)===0)set(r,5,1)});const repaired=normalizeRoundOrder();reindex();render();show("success",repaired?"All Rest sets were changed to Round / Active, and Garmin’s active-round metadata was repaired.":"All Rest sets were changed to Round / Active.")}
+document.getElementById("fixAll").onclick=()=>{sets().forEach(r=>{if(get(r,5)===0)set(r,5,1)});const repaired=normalizeRoundOrder();reindex();render();show("success",repaired?"All Rest sets were changed to Round / Active, and Garmin round order was repaired.":"All Rest sets were changed to Round / Active.")}
 document.getElementById("removeAll").onclick=()=>{S.p.rs=S.p.rs.filter(r=>!(r.k===1&&r.global===225&&get(r,5)===0));normalizeRoundOrder();reindex();render();show("success","All Rest set records were deleted. Underlying Record data was not deleted.")}
 document.getElementById("addRound").onclick=()=>{
  const ss=sets();if(!ss.length){show("error","This activity has no Set record to use as a template.");return}
