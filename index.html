@@ -79,6 +79,7 @@ footer{text-align:center;color:#98a2b3;font-size:12px;margin-top:18px}
         <label>Weight (kg)<input id="weight" type="number" min="0" step=".0625" placeholder="optional"></label>
       </div>
       <div class="form-actions"><button class="primary" id="save">Save</button><button class="danger" id="delete">Delete set</button></div>
+      <div id="editMessage" class="hidden" style="margin-top:10px"></div>
     </div>
 
     <div class="card">
@@ -164,7 +165,7 @@ function rebuildSeparateRounds(){
 function reindex(){sets().forEach((r,i)=>set(r,10,i))}
 function edit(i){const r=sets()[i],base=session()?get(session(),2):0;S.selected=i;document.getElementById("editCard").classList.remove("hidden");document.getElementById("type").value=get(r,5);document.getElementById("start").value=((get(r,6)||base)-base).toFixed(3);document.getElementById("duration").value=((get(r,0)||0)/1000).toFixed(3);document.getElementById("reps").value=get(r,3)===65535?"":get(r,3);document.getElementById("weight").value=get(r,4)===65535?"":(get(r,4)/16).toFixed(4)}
 function del(i){const r=sets()[i],idx=S.p.rs.indexOf(r);S.p.rs.splice(idx,1);S.selected=null;normalizeRoundOrder();reindex();render();document.getElementById("editCard").classList.add("hidden")}
-document.getElementById("save").onclick=()=>{const r=sets()[S.selected],base=session()?get(session(),2):0;set(r,5,+document.getElementById("type").value);set(r,6,Math.round(base+Math.max(0,+document.getElementById("start").value||0)));set(r,0,Math.round(Math.max(0,+document.getElementById("duration").value||0)*1000));set(r,3,document.getElementById("reps").value===""?65535:Math.max(0,Math.round(+document.getElementById("reps").value)));set(r,4,document.getElementById("weight").value===""?65535:Math.max(0,Math.round(+document.getElementById("weight").value*16)));normalizeRoundOrder();reindex();render();edit(S.selected)}
+document.getElementById("save").onclick=()=>{const r=sets()[S.selected],base=session()?get(session(),2):0;set(r,5,+document.getElementById("type").value);set(r,6,Math.round(base+Math.max(0,+document.getElementById("start").value||0)));set(r,0,Math.round(Math.max(0,+document.getElementById("duration").value||0)*1000));set(r,3,document.getElementById("reps").value===""?65535:Math.max(0,Math.round(+document.getElementById("reps").value)));set(r,4,document.getElementById("weight").value===""?65535:Math.max(0,Math.round(+document.getElementById("weight").value*16)));normalizeRoundOrder();reindex();edit(S.selected);const message=document.getElementById("editMessage");message.className="success";message.textContent=`Saved changes to Set ${S.selected+1}.`}
 document.getElementById("delete").onclick=()=>S.selected!=null&&del(S.selected)
 document.getElementById("fixAll").onclick=()=>{const error=rebuildSeparateRounds();if(error){show("error",error);return}render();show("success","Rebuilt each work interval as its own Garmin round, with a one-second Rest record after it.")}
 document.getElementById("removeAll").onclick=()=>{S.p.rs=S.p.rs.filter(r=>!(r.k===1&&r.global===225&&get(r,5)===0));normalizeRoundOrder();reindex();render();show("success","All Rest set records were deleted. Underlying Record data was not deleted.")}
