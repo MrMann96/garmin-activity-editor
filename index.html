@@ -59,7 +59,7 @@ footer{text-align:center;color:#98a2b3;font-size:12px;margin-top:18px}
         <button class="primary big" id="fixAll">⚡ Rebuild as separate rounds</button>
         <button class="big" id="removeAll">Delete all Rest sets</button>
       </div>
-      <p class="small" style="margin-bottom:0">“Rebuild” changes Garmin Set metadata only. It creates a sub-second Rest record after each work set, matching the standard Garmin round structure while still displaying as 0:00. It does not remove your GPS, heart-rate, pace, or other Record data.</p>
+      <p class="small" style="margin-bottom:0">“Rebuild” changes Garmin Set metadata only. It creates a one-second Rest record after each work set, matching the standard Garmin round structure and forcing Garmin Connect to start the next round. It does not remove your GPS, heart-rate, pace, or other Record data.</p>
     </div>
 
     <div class="card">
@@ -150,7 +150,7 @@ function rebuildSeparateRounds(){
   [254,0,6,3,4].forEach(id=>{const value=get(source,id);if(value!==null)set(work,id,value)});
   set(work,5,1);
   const rest=cloneSet(restTemplate),start=get(work,6)||0,duration=(get(work,0)||0)/1000;
-  set(rest,5,0);set(rest,0,1);set(rest,6,Math.round(start+duration));set(rest,3,65535);set(rest,4,65535);
+  set(rest,5,0);set(rest,0,1000);set(rest,6,Math.round(start+duration));set(rest,3,65535);set(rest,4,65535);
   rebuilt.push(work,rest);
  });
  const first=S.p.rs.findIndex(r=>r.k===1&&r.global===225&&!r.comp);
@@ -162,7 +162,7 @@ function edit(i){const r=sets()[i],base=session()?get(session(),2):0;S.selected=
 function del(i){const r=sets()[i],idx=S.p.rs.indexOf(r);S.p.rs.splice(idx,1);S.selected=null;normalizeRoundOrder();reindex();render();document.getElementById("editCard").classList.add("hidden")}
 document.getElementById("save").onclick=()=>{const r=sets()[S.selected],base=session()?get(session(),2):0;set(r,5,+document.getElementById("type").value);set(r,6,Math.round(base+Math.max(0,+document.getElementById("start").value||0)));set(r,0,Math.round(Math.max(0,+document.getElementById("duration").value||0)*1000));set(r,3,document.getElementById("reps").value===""?65535:Math.max(0,Math.round(+document.getElementById("reps").value)));set(r,4,document.getElementById("weight").value===""?65535:Math.max(0,Math.round(+document.getElementById("weight").value*16)));normalizeRoundOrder();reindex();render();edit(S.selected)}
 document.getElementById("delete").onclick=()=>S.selected!=null&&del(S.selected)
-document.getElementById("fixAll").onclick=()=>{const rebuilt=rebuildSeparateRounds();render();show(rebuilt?"success":"error",rebuilt?"Rebuilt each work interval as its own Garmin round, with a sub-second Rest record after it (displayed as 0:00).":"This activity has no Set records to rebuild.")}
+document.getElementById("fixAll").onclick=()=>{const rebuilt=rebuildSeparateRounds();render();show(rebuilt?"success":"error",rebuilt?"Rebuilt each work interval as its own Garmin round, with a one-second Rest record after it.":"This activity has no Set records to rebuild.")}
 document.getElementById("removeAll").onclick=()=>{S.p.rs=S.p.rs.filter(r=>!(r.k===1&&r.global===225&&get(r,5)===0));normalizeRoundOrder();reindex();render();show("success","All Rest set records were deleted. Underlying Record data was not deleted.")}
 document.getElementById("addRound").onclick=()=>{
  const ss=sets();if(!ss.length){show("error","This activity has no Set record to use as a template.");return}
