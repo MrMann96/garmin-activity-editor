@@ -1,0 +1,7 @@
+# Local FIT activities and generated edited copies can contain personal workout data.
+*.fit
+*_edited.fit
+
+# Temporary project-local GitHub CLI credentials, if used.
+.github-cli/
+
