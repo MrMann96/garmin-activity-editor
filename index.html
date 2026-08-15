@@ -59,6 +59,7 @@ footer{text-align:center;color:#98a2b3;font-size:12px;margin-top:18px}
         <button class="primary big" id="fixAll">⚡ Rebuild as separate rounds</button>
         <button class="big" id="removeAll">Delete all Rest sets</button>
       </div>
+      <label style="margin-top:12px">Reps for converted Rest sets<input id="convertedReps" type="number" min="0" step="1" placeholder="Required when the source Rest sets have no reps"></label>
       <p class="small" style="margin-bottom:0">“Rebuild” changes Garmin Set metadata only. It creates a one-second Rest record after each work set, matching the standard Garmin round structure and forcing Garmin Connect to start the next round. It does not remove your GPS, heart-rate, pace, or other Record data.</p>
     </div>
 
@@ -138,7 +139,9 @@ function normalizeRoundOrder(){
 }
 function cloneSet(template){const source=template.arr||S.p.a,raw=source.slice(template.st,template.end);return {st:0,end:raw.length,k:1,local:template.local,global:225,def:template.def,arr:raw,override:raw}}
 function rebuildSeparateRounds(){
- const original=sets();if(!original.length)return false;
+ const original=sets();if(!original.length)return "This activity has no Set records to rebuild.";
+ const repsText=document.getElementById("convertedReps").value.trim(),convertedReps=Number(repsText);
+ if(original.some(r=>get(r,3)===65535)&&(!repsText||!Number.isFinite(convertedReps)||convertedReps<0))return "Enter the actual reps for converted Rest sets before rebuilding.";
  // Garmin's own files encode a displayed round as an Active Set followed by a Rest Set.
  // Use the activity's existing active/rest records as safe raw templates; only standard
  // values (timing, reps, weight, type, and index) are rewritten.
@@ -148,6 +151,7 @@ function rebuildSeparateRounds(){
  original.forEach(source=>{
   const work=cloneSet(activeTemplate);
   [254,0,6,3,4].forEach(id=>{const value=get(source,id);if(value!==null)set(work,id,value)});
+  if(get(source,3)===65535)set(work,3,Math.round(convertedReps));
   set(work,5,1);
   const rest=cloneSet(restTemplate),start=get(work,6)||0,duration=(get(work,0)||0)/1000;
   set(rest,5,0);set(rest,0,1000);set(rest,6,Math.round(start+duration));set(rest,3,65535);set(rest,4,65535);
@@ -155,14 +159,14 @@ function rebuildSeparateRounds(){
  });
  const first=S.p.rs.findIndex(r=>r.k===1&&r.global===225&&!r.comp);
  S.p.rs=S.p.rs.filter(r=>!(r.k===1&&r.global===225&&!r.comp));S.p.rs.splice(first,0,...rebuilt);
- normalizeRoundOrder();reindex();return true;
+ normalizeRoundOrder();reindex();return null;
 }
 function reindex(){sets().forEach((r,i)=>set(r,10,i))}
 function edit(i){const r=sets()[i],base=session()?get(session(),2):0;S.selected=i;document.getElementById("editCard").classList.remove("hidden");document.getElementById("type").value=get(r,5);document.getElementById("start").value=((get(r,6)||base)-base).toFixed(3);document.getElementById("duration").value=((get(r,0)||0)/1000).toFixed(3);document.getElementById("reps").value=get(r,3)===65535?"":get(r,3);document.getElementById("weight").value=get(r,4)===65535?"":(get(r,4)/16).toFixed(4)}
 function del(i){const r=sets()[i],idx=S.p.rs.indexOf(r);S.p.rs.splice(idx,1);S.selected=null;normalizeRoundOrder();reindex();render();document.getElementById("editCard").classList.add("hidden")}
 document.getElementById("save").onclick=()=>{const r=sets()[S.selected],base=session()?get(session(),2):0;set(r,5,+document.getElementById("type").value);set(r,6,Math.round(base+Math.max(0,+document.getElementById("start").value||0)));set(r,0,Math.round(Math.max(0,+document.getElementById("duration").value||0)*1000));set(r,3,document.getElementById("reps").value===""?65535:Math.max(0,Math.round(+document.getElementById("reps").value)));set(r,4,document.getElementById("weight").value===""?65535:Math.max(0,Math.round(+document.getElementById("weight").value*16)));normalizeRoundOrder();reindex();render();edit(S.selected)}
 document.getElementById("delete").onclick=()=>S.selected!=null&&del(S.selected)
-document.getElementById("fixAll").onclick=()=>{const rebuilt=rebuildSeparateRounds();render();show(rebuilt?"success":"error",rebuilt?"Rebuilt each work interval as its own Garmin round, with a one-second Rest record after it.":"This activity has no Set records to rebuild.")}
+document.getElementById("fixAll").onclick=()=>{const error=rebuildSeparateRounds();if(error){show("error",error);return}render();show("success","Rebuilt each work interval as its own Garmin round, with a one-second Rest record after it.")}
 document.getElementById("removeAll").onclick=()=>{S.p.rs=S.p.rs.filter(r=>!(r.k===1&&r.global===225&&get(r,5)===0));normalizeRoundOrder();reindex();render();show("success","All Rest set records were deleted. Underlying Record data was not deleted.")}
 document.getElementById("addRound").onclick=()=>{
  const ss=sets();if(!ss.length){show("error","This activity has no Set record to use as a template.");return}
