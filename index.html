@@ -60,7 +60,7 @@ footer{text-align:center;color:#98a2b3;font-size:12px;margin-top:18px}
         <button class="big" id="removeAll">Delete all Rest sets</button>
       </div>
       <label style="margin-top:12px">Reps for converted Rest sets<input id="convertedReps" type="number" min="0" step="1" placeholder="Required when the source Rest sets have no reps"></label>
-      <p class="small" style="margin-bottom:0">“Rebuild” changes Garmin Set metadata only. It creates a one-second Rest record after each work set, matching the standard Garmin round structure and forcing Garmin Connect to start the next round. It does not remove your GPS, heart-rate, pace, or other Record data.</p>
+      <p class="small" style="margin-bottom:0">“Rebuild” creates a separate Active/Rest pair for every recorded interval and rebuilds their timestamps as a continuous timeline. This matches the standard Garmin round structure without changing GPS, heart-rate, pace, or other Record data.</p>
     </div>
 
     <div class="card">
@@ -149,14 +149,21 @@ function rebuildSeparateRounds(){
  const activeTemplate=original.find(r=>get(r,5)===1&&field(r,2)&&field(r,2).sz===3&&(r.arr||S.p.a)[r.st+1+field(r,2).off]===255)||original[0];
  const restTemplate=original.find(r=>get(r,5)===0)||(original.find(r=>field(r,2)&&field(r,2).sz===3&&(r.arr||S.p.a)[r.st+1+field(r,2).off]===0))||original[0];
  const rebuilt=[];
+ // Garmin Connect derives a round boundary from the complete Active → Rest timeline,
+ // rather than the Set type alone.  Rebase every pair so its timestamps are contiguous:
+ // Active ends at its timestamp, the Rest begins there, and the next Active begins
+ // after that Rest.  This avoids the overlapping timestamps that made Connect merge
+ // consecutive sets into one displayed round.
+ let cursor=get(original[0],6)||0;
  original.forEach(source=>{
-  const work=cloneSet(activeTemplate);
-  [254,0,6,3,4].forEach(id=>{const value=get(source,id);if(value!==null)set(work,id,value)});
+  const work=cloneSet(activeTemplate),duration=Math.max(0,get(source,0)||0);
+  [0,3,4].forEach(id=>{const value=get(source,id);if(value!==null)set(work,id,value)});
   if(get(source,3)===65535)set(work,3,Math.round(convertedReps));
-  set(work,5,1);
-  const rest=cloneSet(restTemplate),start=get(work,6)||0,duration=(get(work,0)||0)/1000;
-  set(rest,5,0);set(rest,0,1000);set(rest,6,Math.round(start+duration));set(rest,3,65535);set(rest,4,65535);
-  rebuilt.push(work,rest);
+  set(work,5,1);set(work,6,cursor);
+  const workEnd=cursor+Math.ceil(duration/1000);set(work,254,workEnd);
+  const rest=cloneSet(restTemplate);
+  set(rest,5,0);set(rest,0,1000);set(rest,6,workEnd);set(rest,254,workEnd+1);set(rest,3,65535);set(rest,4,65535);
+  rebuilt.push(work,rest);cursor=workEnd+1;
  });
  const first=S.p.rs.findIndex(r=>r.k===1&&r.global===225&&!r.comp);
  S.p.rs=S.p.rs.filter(r=>!(r.k===1&&r.global===225&&!r.comp));S.p.rs.splice(first,0,...rebuilt);
